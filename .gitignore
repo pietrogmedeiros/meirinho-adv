@@ -31,3 +31,5 @@ bin/
 ### Projeto ###
 # Segredos locais (ANTHROPIC_API_KEY, JWT_SECRET) — só .env.example e versionado.
 .env
+node_modules/
+apps/web/dist/
