@@ -91,3 +91,10 @@ const (
 	NotifEmail    TipoNotificacao = "email"
 	NotifWhatsApp TipoNotificacao = "whatsapp"
 )
+
+// ParseUrgencia existe para validar configuração (o piso do fallback) e
+// entrada de filtro na API, sem que cada chamador reimplemente a checagem.
+func ParseUrgencia(s string) (Urgencia, bool) {
+	u := Urgencia(strings.ToLower(strings.TrimSpace(s)))
+	return u, u.Valida()
+}

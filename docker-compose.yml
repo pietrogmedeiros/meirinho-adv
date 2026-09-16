@@ -1,0 +1,180 @@
+# Sobe o MVP inteiro. `docker compose up --build` numa máquina limpa, sem
+# nenhuma credencial externa: transcrição e análise caem no mock por padrão.
+#
+# Ordem: infraestrutura -> migrate (roda e sai) -> serviços.
+
+x-servico-comum: &servico-comum
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment: &env-comum
+    # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+    # isolamento por tenant valer no banco e não só na aplicação.
+    DATABASE_URL: postgres://meirinho_app:meirinho_app@postgres:5432/meirinho?sslmode=disable
+    REDIS_ADDR: redis:6379
+    JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    MINIO_ENDPOINT: minio:9000
+    MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+    MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+    MINIO_BUCKET: meirinho-audio
+    ANALYZER: ${ANALYZER:-mock}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: meirinho
+      POSTGRES_PASSWORD: meirinho
+      POSTGRES_DB: meirinho
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meirinho -d meirinho"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-meirinho123}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports: ["9000:9000", "9001:9001"]
+
+  # Roda como dono do banco (meirinho), não como meirinho_app: o dono aplica
+  # DDL e concede os grants que o papel da aplicação usa.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CMD_PATH: ./cmd/migrate
+    environment:
+      DATABASE_URL: postgres://meirinho:meirinho@postgres:5432/meirinho?sslmode=disable
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  auth-service:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/auth-service}
+    environment:
+      <<: *env-comum
+      PORT: "8081"
+
+  hearing-service:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/hearing-service}
+    environment:
+      <<: *env-comum
+      PORT: "8082"
+
+  analysis-service:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/analysis-service}
+    environment:
+      <<: *env-comum
+      PORT: "8083"
+
+  notification-service:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/notification-service}
+    environment:
+      <<: *env-comum
+      PORT: "8084"
+      NOTIFY_URGENCIA_MINIMA: ${NOTIFY_URGENCIA_MINIMA:-baixa}
+      NOTIFY_EMAIL_ENABLED: ${NOTIFY_EMAIL_ENABLED:-false}
+      # WhatsApp existe no modelo, mas não há provedor contratado no MVP.
+      NOTIFY_WHATSAPP_ENABLED: ${NOTIFY_WHATSAPP_ENABLED:-false}
+
+  process-monitor-service:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/process-monitor-service}
+    environment:
+      <<: *env-comum
+      PORT: "8085"
+      PROCESS_PROVIDER: ${PROCESS_PROVIDER:-mock}
+      POLL_INTERVAL: ${POLL_INTERVAL:-5m}
+
+  transcription-worker:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/transcription-worker}
+    environment:
+      <<: *env-comum
+      PORT: "8086"
+      TRANSCRIBER: ${TRANSCRIBER:-mock}
+
+  classification-worker:
+    <<: *servico-comum
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./services/classification-worker}
+    environment:
+      <<: *env-comum
+      PORT: "8087"
+      CLASSIFY_PISO: ${CLASSIFY_PISO:-media}
+      CLASSIFY_MIN_CONFIANCA: ${CLASSIFY_MIN_CONFIANCA:-0.6}
+
+  # Porta única para o cliente: sem isso o front precisaria conhecer sete
+  # endereços e lidar com CORS de cada um.
+  gateway:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["8080:80"]
+    depends_on: [auth-service, hearing-service, notification-service, process-monitor-service]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
