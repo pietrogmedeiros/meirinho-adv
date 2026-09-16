@@ -1,4 +1,4 @@
-package main
+package llm
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type claudeAnalyzer struct {
 	modelo string
 }
 
-func novoClaudeAnalyzer(apiKey, modelo string) *claudeAnalyzer {
+func NovoClaude(apiKey, modelo string) *claudeAnalyzer {
 	return &claudeAnalyzer{
 		client: anthropic.NewClient(option.WithAPIKey(apiKey)),
 		modelo: modelo,

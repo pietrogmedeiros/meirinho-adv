@@ -1,4 +1,11 @@
-package main
+// Package llm é a fronteira com o modelo de linguagem.
+//
+// Mora em platform, e não dentro de um serviço, porque dois consumidores
+// diferentes precisam do mesmo contrato: o analysis-service analisa audiências
+// transcritas e o classification-worker classifica movimentações processuais.
+// Audiência e movimentação são fontes de dado distintas lidas pelo mesmo
+// padrão — contexto da norma da área + pedido de saída estruturada.
+package llm
 
 import (
 	"context"
@@ -26,9 +33,6 @@ type ClassificacaoMovimentacao struct {
 	Motivo    string          `json:"motivo"`
 }
 
-// Analyzer é a fronteira com o LLM. Audiência e movimentação são fontes de
-// dado diferentes analisadas pelo mesmo padrão: contexto da norma da área +
-// pedido de saída estruturada.
 type Analyzer interface {
 	AnalisarAudiencia(ctx context.Context, transcricao string, area domain.AreaDoDireito) (*AnaliseAudiencia, error)
 	ClassificarMovimentacao(ctx context.Context, descricao string, area domain.AreaDoDireito) (*ClassificacaoMovimentacao, error)

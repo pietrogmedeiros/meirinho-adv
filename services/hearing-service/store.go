@@ -14,18 +14,19 @@ import (
 var errNaoEncontrada = errors.New("audiência não encontrada")
 
 type audiencia struct {
-	ID            string               `json:"id"`
-	Titulo        string               `json:"titulo"`
-	NomeArquivo   string               `json:"nome_arquivo"`
-	AreaDoDireito domain.AreaDoDireito `json:"area_do_direito"`
-	Status        domain.HearingStatus `json:"status"`
-	Transcript    *string              `json:"transcript,omitempty"`
-	Summary       *string              `json:"summary,omitempty"`
-	Suggestion    *string              `json:"suggestion,omitempty"`
-	Erro          *string              `json:"erro,omitempty"`
-	AudioURL      string               `json:"audio_url,omitempty"`
-	CreatedAt     time.Time            `json:"created_at"`
-	UpdatedAt     time.Time            `json:"updated_at"`
+	ID             string               `json:"id"`
+	Titulo         string               `json:"titulo"`
+	NomeArquivo    string               `json:"nome_arquivo"`
+	AreaDoDireito  domain.AreaDoDireito `json:"area_do_direito"`
+	Status         domain.HearingStatus `json:"status"`
+	Transcript     *string              `json:"transcript,omitempty"`
+	Summary        *string              `json:"summary,omitempty"`
+	Suggestion     *string              `json:"suggestion,omitempty"`
+	PontosCriticos []string             `json:"pontos_criticos,omitempty"`
+	Erro           *string              `json:"erro,omitempty"`
+	AudioURL       string               `json:"audio_url,omitempty"`
+	CreatedAt      time.Time            `json:"created_at"`
+	UpdatedAt      time.Time            `json:"updated_at"`
 }
 
 type store struct{ pool *db.Pool }
@@ -82,10 +83,10 @@ func (s *store) buscar(ctx context.Context, tenantID, id string) (*audiencia, st
 	err := s.pool.TenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			SELECT id, titulo, nome_arquivo, area_do_direito, status,
-			       transcript, summary, suggestion, erro, object_key, created_at, updated_at
+			       transcript, summary, suggestion, pontos_criticos, erro, object_key, created_at, updated_at
 			  FROM hearing.hearings WHERE id = $1`, id,
 		).Scan(&a.ID, &a.Titulo, &a.NomeArquivo, &a.AreaDoDireito, &a.Status,
-			&a.Transcript, &a.Summary, &a.Suggestion, &a.Erro, &objectKey, &a.CreatedAt, &a.UpdatedAt)
+			&a.Transcript, &a.Summary, &a.Suggestion, &a.PontosCriticos, &a.Erro, &objectKey, &a.CreatedAt, &a.UpdatedAt)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", errNaoEncontrada
