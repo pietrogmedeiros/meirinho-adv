@@ -55,18 +55,13 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-meirinho}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-meirinho123}
     volumes:
       - miniodata:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
     ports: ["9000:9000", "9001:9001"]
 
   # Roda como dono do banco (meirinho), não como meirinho_app: o dono aplica
@@ -140,6 +135,8 @@ services:
       PORT: "8085"
       PROCESS_PROVIDER: ${PROCESS_PROVIDER:-mock}
       POLL_INTERVAL: ${POLL_INTERVAL:-5m}
+      # Probabilidade de o provider mock inventar um andamento por consulta.
+      MOCK_MOVEMENT_CHANCE: ${MOCK_MOVEMENT_CHANCE:-0.35}
 
   transcription-worker:
     <<: *servico-comum
