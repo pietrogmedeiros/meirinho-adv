@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -18,20 +20,26 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	pool, err := db.Open(ctx, config.MustString("DATABASE_URL"))
-	if err != nil {
-		log.Error("abrir banco", "err", err)
-		panic(err)
+	dsn := config.MustString("DATABASE_URL")
+	pool, err := conectar(ctx, dsn)
+	if db.ErroDeAutenticacao(err) {
+		// O volume do Postgres guarda a senha da PRIMEIRA subida. Se ele nasceu
+		// antes das variáveis estarem definidas, a senha do dono é a padrão.
+		// Nesse caso, entra com ela e troca para a senha configurada — deixar a
+		// padrão seria pior, e não há outro caminho sem apagar o banco.
+		log.Warn("senha do dono recusada; tentando a senha padrão do primeiro deploy")
+		err = trocarSenhaPadraoDoDono(ctx, dsn)
+		if err == nil {
+			log.Info("senha do dono atualizada para a POSTGRES_PASSWORD configurada")
+			pool, err = conectar(ctx, dsn)
+		}
 	}
-	defer pool.Close()
-
-	if err := pool.Aguardar(ctx, 60); err != nil {
-		// A causa mais comum em servidor: o volume do Postgres foi criado com
-		// outra POSTGRES_PASSWORD (ela só vale na primeira subida do volume).
+	if err != nil {
 		log.Error("conectar ao postgres; se for falha de autenticação, a POSTGRES_PASSWORD "+
 			"não é a mesma com que o volume foi criado", "err", err)
 		os.Exit(1)
 	}
+	defer pool.Close()
 	if err := db.Migrar(ctx, pool, log); err != nil {
 		log.Error("migrar", "err", err)
 		os.Exit(1)
@@ -41,6 +49,48 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("migrations em dia")
+}
+
+// senhaPadraoDono é a POSTGRES_PASSWORD padrão do docker-compose.yml.
+const senhaPadraoDono = "meirinho"
+
+func conectar(ctx context.Context, dsn string) (*db.Pool, error) {
+	pool, err := db.Open(ctx, dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err := pool.Aguardar(ctx, 60); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
+}
+
+// trocarSenhaPadraoDoDono entra com a senha padrão e define a senha que está
+// no DSN configurado. Só tem efeito se o banco ainda estiver com a padrão.
+func trocarSenhaPadraoDoDono(ctx context.Context, dsn string) error {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return err
+	}
+	nova, _ := u.User.Password()
+	if nova == "" || nova == senhaPadraoDono {
+		return fmt.Errorf("senha configurada é a própria padrão; nada a tentar")
+	}
+	u.User = url.UserPassword(u.User.Username(), senhaPadraoDono)
+	pool, err := conectar(ctx, u.String())
+	if err != nil {
+		return fmt.Errorf("senha padrão também recusada: %w", err)
+	}
+	defer pool.Close()
+
+	var sql string
+	if err := pool.QueryRow(ctx, `SELECT format('ALTER ROLE %I WITH PASSWORD %L', $1::text, $2::text)`,
+		u.User.Username(), nova).Scan(&sql); err != nil {
+		return err
+	}
+	_, err = pool.Exec(ctx, sql)
+	return err
 }
 
 // sincronizarPapelApp garante que o papel dos serviços exista com a senha de

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -46,6 +47,10 @@ func (p *Pool) Aguardar(ctx context.Context, tentativas int) error {
 		} else {
 			last = err
 		}
+		// Senha errada não melhora esperando: desiste já, com o erro real.
+		if ErroDeAutenticacao(last) {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -53,6 +58,12 @@ func (p *Pool) Aguardar(ctx context.Context, tentativas int) error {
 		}
 	}
 	return fmt.Errorf("postgres indisponível: %w", last)
+}
+
+// ErroDeAutenticacao diz se o Postgres recusou usuário/senha (SQLSTATE 28P01).
+func ErroDeAutenticacao(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "28P01"
 }
 
 // TenantTx abre uma transação com `app.current_tenant` setado, roda fn e
