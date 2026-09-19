@@ -286,9 +286,10 @@ services:
   gateway:
     build:
       context: ./infra/gateway
-    # Local: http://localhost:8080. No Easypanel, aponte o domínio para o
-    # serviço "gateway", porta 80 (a porta publicada aqui não é necessária).
-    ports: ["${GATEWAY_PORT:-8080}:80"]
+    # Nenhuma porta publicada aqui: no Easypanel o domínio aponta para o
+    # serviço "gateway", porta 80. Para rodar local, docker-compose.override.yml
+    # (lido automaticamente pelo `docker compose`) publica em localhost:8080.
+    expose: ["80"]
     depends_on: [auth-service, hearing-service, notification-service, process-monitor-service, web, minio]
     restart: unless-stopped
 

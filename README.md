@@ -46,7 +46,9 @@ mesmo caso.
    conta de demonstração é criada ao final.
 
 Nenhuma imagem monta arquivo do repositório (a config do nginx e o script do
-Postgres são copiados para dentro das imagens), e só o gateway publica porta.
+Postgres são copiados para dentro das imagens), e nenhum serviço publica porta
+no host. A porta local 8080 vem do `docker-compose.override.yml`, que o
+`docker compose` lê sozinho na sua máquina e o Easypanel não usa.
 
 ## Pipeline
 
