@@ -47,8 +47,9 @@ mesmo caso.
 
 Nenhuma imagem monta arquivo do repositório (a config do nginx e o script do
 Postgres são copiados para dentro das imagens), e nenhum serviço publica porta
-no host. A porta local 8080 vem do `docker-compose.override.yml`, que o
-`docker compose` lê sozinho na sua máquina e o Easypanel não usa.
+no host. A porta local 8080 vem do `docker-compose.local.yml`, incluído pelo
+`COMPOSE_FILE` do `.env` (copie o `.env.example`). O nome não é
+`docker-compose.override.yml` porque o Easypanel gera um arquivo com esse nome.
 
 ## Pipeline
 

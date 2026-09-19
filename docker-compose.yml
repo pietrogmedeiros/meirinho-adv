@@ -65,6 +65,8 @@ services:
         CMD_PATH: ./cmd/migrate
     environment:
       DATABASE_URL: postgres://meirinho:${POSTGRES_PASSWORD:-meirinho}@postgres:5432/meirinho?sslmode=disable
+      # Mantém a senha do papel meirinho_app igual à variável a cada deploy.
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-meirinho_app}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       postgres:
@@ -287,8 +289,8 @@ services:
     build:
       context: ./infra/gateway
     # Nenhuma porta publicada aqui: no Easypanel o domínio aponta para o
-    # serviço "gateway", porta 80. Para rodar local, docker-compose.override.yml
-    # (lido automaticamente pelo `docker compose`) publica em localhost:8080.
+    # serviço "gateway", porta 80. Para rodar local, docker-compose.local.yml
+    # publica em localhost:8080 (o .env.example já o inclui via COMPOSE_FILE).
     expose: ["80"]
     depends_on: [auth-service, hearing-service, notification-service, process-monitor-service, web, minio]
     restart: unless-stopped

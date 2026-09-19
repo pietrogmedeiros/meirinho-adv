@@ -1,6 +1,0 @@
-# Só para rodar local: o `docker compose` lê este arquivo automaticamente junto
-# com o docker-compose.yml. O Easypanel usa apenas o docker-compose.yml, então
-# lá nenhum serviço publica porta no host (o acesso é pelo domínio).
-services:
-  gateway:
-    ports: ["${GATEWAY_PORT:-8080}:80"]

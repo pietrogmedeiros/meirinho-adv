@@ -1,0 +1,8 @@
+# Só para rodar local: publica o gateway em localhost:8080. Entra pelo
+# COMPOSE_FILE do .env (ver .env.example) ou por
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up
+# Não se chama docker-compose.override.yml de propósito: o Easypanel gera um
+# arquivo com esse nome para injetar a própria rede e sobrescreveria este.
+services:
+  gateway:
+    ports: ["${GATEWAY_PORT:-8080}:80"]
