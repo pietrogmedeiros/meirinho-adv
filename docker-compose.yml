@@ -7,28 +7,9 @@
 # JWT_SECRET, POSTGRES_PASSWORD, APP_DB_PASSWORD e MINIO_ROOT_PASSWORD (use só
 # letras e números nas senhas do banco: elas entram numa URL de conexão).
 
-x-servico-comum: &servico-comum
-  build:
-    context: .
-    dockerfile: Dockerfile
-  restart: unless-stopped
-  environment: &env-comum
-    # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
-    # isolamento por tenant valer no banco e não só na aplicação.
-    DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
-    REDIS_ADDR: redis:6379
-    JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
-    LOG_LEVEL: ${LOG_LEVEL:-info}
-    MINIO_ENDPOINT: minio:9000
-    MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
-    MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
-    MINIO_BUCKET: meirinho-audio
-    ANALYZER: ${ANALYZER:-mock}
-    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
-  depends_on:
-    migrate:
-      condition: service_completed_successfully
+# Sem âncoras YAML (&/<<) de propósito: o Easypanel reescreve o compose antes
+# de subir e perde as chaves mescladas — os serviços subiam sem DATABASE_URL.
+# O custo é repetir o bloco de ambiente comum em cada serviço Go.
 
 services:
   postgres:
@@ -91,43 +72,103 @@ services:
     restart: "no"
 
   auth-service:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/auth-service}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8081"
 
   hearing-service:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/hearing-service}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8082"
 
   analysis-service:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/analysis-service}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8083"
 
   notification-service:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/notification-service}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8084"
       NOTIFY_URGENCIA_MINIMA: ${NOTIFY_URGENCIA_MINIMA:-baixa}
       NOTIFY_EMAIL_ENABLED: ${NOTIFY_EMAIL_ENABLED:-false}
@@ -135,13 +176,28 @@ services:
       NOTIFY_WHATSAPP_ENABLED: ${NOTIFY_WHATSAPP_ENABLED:-false}
 
   process-monitor-service:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/process-monitor-service}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8085"
       PROCESS_PROVIDER: ${PROCESS_PROVIDER:-mock}
       POLL_INTERVAL: ${POLL_INTERVAL:-5m}
@@ -149,24 +205,54 @@ services:
       MOCK_MOVEMENT_CHANCE: ${MOCK_MOVEMENT_CHANCE:-0.35}
 
   transcription-worker:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/transcription-worker}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8086"
       TRANSCRIBER: ${TRANSCRIBER:-mock}
 
   classification-worker:
-    <<: *servico-comum
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: Dockerfile
       args: {CMD_PATH: ./services/classification-worker}
     environment:
-      <<: *env-comum
+      # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
+      # isolamento por tenant valer no banco e não só na aplicação.
+      DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-meirinho}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-meirinho123}
+      MINIO_BUCKET: meirinho-audio
+      ANALYZER: ${ANALYZER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
       PORT: "8087"
       CLASSIFY_PISO: ${CLASSIFY_PISO:-media}
       CLASSIFY_MIN_CONFIANCA: ${CLASSIFY_MIN_CONFIANCA:-0.6}
