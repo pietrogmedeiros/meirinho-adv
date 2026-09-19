@@ -9,6 +9,8 @@ interface ContextoAuth {
   entrar: (email: string, senha: string) => Promise<void>
   cadastrar: (d: { nome: string; oab: string; email: string; senha: string }) => Promise<void>
   sair: () => void
+  /** Troca os dados da sessão depois de editar o perfil. */
+  atualizarTenant: (t: Tenant) => void
 }
 
 const Ctx = createContext<ContextoAuth | null>(null)
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <Ctx.Provider value={{ tenant, carregando, entrar, cadastrar, sair }}>
+    <Ctx.Provider value={{ tenant, carregando, entrar, cadastrar, sair, atualizarTenant: setTenant }}>
       {children}
     </Ctx.Provider>
   )

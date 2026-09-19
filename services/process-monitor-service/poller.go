@@ -116,6 +116,7 @@ func (p *poller) sincronizar(ctx context.Context, tenantID string, proc processo
 			Descricao:  mv.Descricao,
 			Data:       mv.Data,
 			Area:       proc.Area,
+			Titulo:     proc.Titulo,
 		}); err != nil {
 			log.Error("publicar movement.received", "err", err, "movement_id", id)
 			continue

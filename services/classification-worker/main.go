@@ -100,6 +100,8 @@ func (w *worker) processar(ctx context.Context, raw []byte) error {
 		Sugestao:         res.Sugestao,
 		PrazoDias:        res.PrazoDias,
 		FallbackAplicado: fallback,
+		Data:             ev.Data,
+		Titulo:           ev.Titulo,
 	})
 }
 

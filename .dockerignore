@@ -1,0 +1,7 @@
+# O Dockerfile da raiz faz COPY . . para compilar os serviços Go; sem isto o
+# contexto de build carregaria o node_modules do front a cada serviço.
+.git
+.idea
+**/node_modules
+apps/web/dist
+.env

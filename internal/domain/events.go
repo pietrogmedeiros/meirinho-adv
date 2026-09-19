@@ -34,6 +34,9 @@ type AudioUploaded struct {
 	TenantID  string        `json:"tenant_id"`
 	ObjectKey string        `json:"object_key"`
 	Area      AreaDoDireito `json:"area_do_direito"`
+	// Titulo não muda nada no motor real; o transcritor mock o usa para
+	// escolher uma audiência fictícia coerente com o nome dado pelo advogado.
+	Titulo string `json:"titulo,omitempty"`
 }
 
 type AudioTranscribed struct {
@@ -48,6 +51,9 @@ type HearingAnalyzed struct {
 	TenantID   string `json:"tenant_id"`
 	Summary    string `json:"summary"`
 	Suggestion string `json:"suggestion"`
+	// Titulo é o que o advogado deu à audiência (ou o nome do arquivo): sem
+	// ele, cinco notificações seguidas teriam o mesmo texto.
+	Titulo string `json:"titulo,omitempty"`
 }
 
 type MovementReceived struct {
@@ -58,6 +64,9 @@ type MovementReceived struct {
 	Descricao  string        `json:"descricao"`
 	Data       time.Time     `json:"data"`
 	Area       AreaDoDireito `json:"area_do_direito"`
+	// Titulo do processo, só para exibição: a notificação fala "Silva x
+	// Banco", não um número de 20 dígitos.
+	Titulo string `json:"titulo,omitempty"`
 }
 
 type MovementClassified struct {
@@ -70,4 +79,8 @@ type MovementClassified struct {
 	Sugestao         string   `json:"sugestao"`
 	PrazoDias        *int     `json:"prazo_dias,omitempty"`
 	FallbackAplicado bool     `json:"fallback_aplicado"`
+	// Data do andamento no tribunal (não da classificação): é o que permite
+	// ao notificador ignorar o histórico da primeira consulta de um processo.
+	Data   time.Time `json:"data"`
+	Titulo string    `json:"titulo,omitempty"`
 }

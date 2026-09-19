@@ -157,6 +157,7 @@ func (a *api) upload(w http.ResponseWriter, r *http.Request) {
 		TenantID:  tenantID,
 		ObjectKey: objectKey,
 		Area:      area,
+		Titulo:    aud.Titulo,
 	}); err != nil {
 		// A audiência já está persistida; o pipeline pode ser reprocessado.
 		// Melhor devolver 202 com o registro do que perder o upload.

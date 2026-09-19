@@ -77,7 +77,8 @@ func (w *worker) processar(ctx context.Context, raw []byte) error {
 		return err
 	}
 
-	if err := w.salvarAnalise(ctx, ev.TenantID, ev.HearingID, analise); err != nil {
+	titulo, err := w.salvarAnalise(ctx, ev.TenantID, ev.HearingID, analise)
+	if err != nil {
 		return err
 	}
 
@@ -86,6 +87,7 @@ func (w *worker) processar(ctx context.Context, raw []byte) error {
 		TenantID:   ev.TenantID,
 		Summary:    analise.Resumo,
 		Suggestion: analise.SugestaoEstrategica,
+		Titulo:     titulo,
 	})
 }
 
@@ -99,13 +101,18 @@ func (w *worker) marcarStatus(ctx context.Context, tenantID, id string, s domain
 	})
 }
 
-func (w *worker) salvarAnalise(ctx context.Context, tenantID, id string, a *llm.AnaliseAudiencia) error {
-	return w.pool.TenantTx(ctx, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+// salvarAnalise grava o resultado e devolve o título da audiência, que segue
+// no evento para a notificação.
+func (w *worker) salvarAnalise(ctx context.Context, tenantID, id string, a *llm.AnaliseAudiencia) (string, error) {
+	var titulo string
+	err := w.pool.TenantTx(ctx, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
 			UPDATE hearing.hearings
 			   SET summary = $2, suggestion = $3, pontos_criticos = $4,
 			       status = 'analyzed', erro = NULL, updated_at = now()
-			 WHERE id = $1`, id, a.Resumo, a.SugestaoEstrategica, a.PontosCriticos)
-		return err
+			 WHERE id = $1
+			RETURNING COALESCE(NULLIF(titulo, ''), nome_arquivo)`,
+			id, a.Resumo, a.SugestaoEstrategica, a.PontosCriticos).Scan(&titulo)
 	})
+	return titulo, err
 }

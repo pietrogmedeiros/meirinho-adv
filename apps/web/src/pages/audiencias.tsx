@@ -56,7 +56,7 @@ export function AudienciasPage() {
             const st = STATUS_AUDIENCIA[a.status] ?? STATUS_AUDIENCIA.uploaded
             return (
               <Link key={a.id} to={`/audiencias/${a.id}`} className="block">
-                <Card className="transition-colors hover:border-primary/40">
+                <Card className="py-0 transition-colors hover:border-primary/40">
                   <CardContent className="flex items-center gap-4 p-4">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
                       <FileAudio className="size-5 text-muted-foreground" />
@@ -115,11 +115,9 @@ function DialogUpload({ aoEnviar }: { aoEnviar: () => void }) {
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Upload className="size-4" />
-          Nova audiência
-        </Button>
+      <DialogTrigger render={<Button className="gap-2" />}>
+        <Upload className="size-4" />
+        Nova audiência
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={submeter}>
@@ -155,7 +153,11 @@ function DialogUpload({ aoEnviar }: { aoEnviar: () => void }) {
 
             <div className="space-y-2">
               <Label htmlFor="area">Área do direito</Label>
-              <Select value={area} onValueChange={(v) => setArea(v as AreaDoDireito)}>
+              <Select
+                items={AREAS.map((a) => ({ value: a.valor, label: a.rotulo }))}
+                value={area}
+                onValueChange={(v) => v && setArea(v as AreaDoDireito)}
+              >
                 <SelectTrigger id="area" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

@@ -3,6 +3,7 @@ import type {
   AreaDoDireito,
   Movimentacao,
   Notificacao,
+  PreferenciasNotificacao,
   Processo,
   Sessao,
 } from "./tipos"
@@ -26,12 +27,13 @@ export function limparToken() {
 
 /** Erro da API já traduzido: `message` do backend é escrito para o usuário final. */
 export class ErroAPI extends Error {
-  constructor(
-    readonly status: number,
-    readonly codigo: string,
-    mensagem: string,
-  ) {
+  readonly status: number
+  readonly codigo: string
+
+  constructor(status: number, codigo: string, mensagem: string) {
     super(mensagem)
+    this.status = status
+    this.codigo = codigo
   }
 }
 
@@ -86,6 +88,20 @@ export const api = {
 
   eu: () => requisitar<Sessao["tenant"]>("/auth/eu"),
 
+  atualizarPerfil: (dados: { nome: string; oab: string; email: string }) =>
+    requisitar<Sessao["tenant"]>("/auth/eu", { method: "PATCH", body: JSON.stringify(dados) }),
+
+  trocarSenha: (dados: { senha_atual: string; nova_senha: string }) =>
+    requisitar<void>("/auth/senha", { method: "POST", body: JSON.stringify(dados) }),
+
+  preferencias: () => requisitar<PreferenciasNotificacao>("/notifications/preferencias"),
+
+  salvarPreferencias: (p: PreferenciasNotificacao) =>
+    requisitar<PreferenciasNotificacao>("/notifications/preferencias", {
+      method: "PUT",
+      body: JSON.stringify(p),
+    }),
+
   audiencias: () =>
     requisitar<{ itens: Audiencia[] }>("/hearings").then((r) => r.itens ?? []),
 
@@ -101,6 +117,13 @@ export const api = {
 
   processos: () =>
     requisitar<{ itens: Processo[] }>("/processes").then((r) => r.itens ?? []),
+
+  processo: (id: string) => requisitar<Processo>(`/processes/${id}`),
+
+  processoDaMovimentacao: (movimentacaoID: string) =>
+    requisitar<{ process_id: string }>(`/processes/movimentacoes/${movimentacaoID}/processo`).then(
+      (r) => r.process_id,
+    ),
 
   criarProcesso: (dados: {
     numero_cnj: string

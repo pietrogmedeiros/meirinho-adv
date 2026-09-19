@@ -44,13 +44,27 @@ func novoDespachante(log *slog.Logger) *despachante {
 // Despachar nunca falha o processamento do evento: a notificação já está
 // persistida e visível in-app. Um canal externo fora do ar não pode fazer a
 // mensagem ser reprocessada e duplicar o registro.
-func (d *despachante) Despachar(ctx context.Context, n notificacao) {
+func (d *despachante) Despachar(ctx context.Context, n notificacao, p preferencias) {
 	for _, c := range d.canais {
+		// O servidor ter o canal ligado não basta: o advogado precisa ter
+		// escolhido recebê-lo.
+		if (c.Tipo() == domain.NotifEmail && !p.CanalEmail) || (c.Tipo() == domain.NotifWhatsApp && !p.CanalWhatsApp) {
+			continue
+		}
 		if err := c.Enviar(ctx, n); err != nil {
 			d.log.Error("falha ao enviar notificação",
 				"canal", c.Tipo(), "notificacao_id", n.ID, "err", err)
 		}
 	}
+}
+
+// disponiveis diz quais canais externos este servidor tem ligados.
+func (d *despachante) disponiveis() map[string]bool {
+	m := map[string]bool{string(domain.NotifEmail): false, string(domain.NotifWhatsApp): false}
+	for _, c := range d.canais {
+		m[string(c.Tipo())] = true
+	}
+	return m
 }
 
 // canalLog é o stand-in dos canais externos enquanto não há provedor: registra

@@ -98,3 +98,35 @@ func (s *store) atualizarRetencao(ctx context.Context, id string, dias int) (*te
 	}
 	return &t, nil
 }
+
+func (s *store) atualizarPerfil(ctx context.Context, id, nome, oab, email string) (*tenant, error) {
+	var t tenant
+	err := s.pool.AdminTx(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			UPDATE auth.tenants SET nome = $2, oab = $3, email = $4 WHERE id = $1
+			RETURNING id, nome, oab, email, retencao_dias, created_at`, id, nome, oab, email,
+		).Scan(&t.ID, &t.Nome, &t.OAB, &t.Email, &t.RetencaoDias, &t.CreatedAt)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "tenants_email_uniq") {
+			return nil, errEmailEmUso
+		}
+		return nil, fmt.Errorf("atualizar perfil: %w", err)
+	}
+	return &t, nil
+}
+
+func (s *store) senhaHash(ctx context.Context, id string) (string, error) {
+	var hash string
+	err := s.pool.AdminTx(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT senha_hash FROM auth.tenants WHERE id = $1`, id).Scan(&hash)
+	})
+	return hash, err
+}
+
+func (s *store) atualizarSenha(ctx context.Context, id, hash string) error {
+	return s.pool.AdminTx(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE auth.tenants SET senha_hash = $2 WHERE id = $1`, id, hash)
+		return err
+	})
+}

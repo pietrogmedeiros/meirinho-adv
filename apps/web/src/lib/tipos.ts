@@ -64,8 +64,12 @@ export interface Processo {
   tribunal: string
   area_do_direito: AreaDoDireito
   provider: string
-  status: string
+  status: "ativo" | "arquivado"
   created_at: string
+  total_movimentacoes: number
+  ultima_movimentacao?: string
+  ultima_descricao?: string
+  ultima_urgencia?: Urgencia
 }
 
 export interface Movimentacao {
@@ -78,6 +82,15 @@ export interface Movimentacao {
   prazo_dias?: number
   fallback_aplicado: boolean
   created_at: string
+}
+
+export interface PreferenciasNotificacao {
+  urgencia_minima: Urgencia
+  alertar_audiencias: boolean
+  canal_email: boolean
+  canal_whatsapp: boolean
+  telefone: string
+  canais_disponiveis?: { email: boolean; whatsapp: boolean }
 }
 
 export interface Notificacao {

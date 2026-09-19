@@ -14,6 +14,8 @@ export default defineConfig({
     // dois casos e o código nunca precisa saber em qual está.
     proxy: {
       "/api": { target: "http://localhost:8080", changeOrigin: true },
+      // Áudio assinado: o gateway repassa ao MinIO (ver urlDeAudio).
+      "/meirinho-audio": { target: "http://localhost:8080" },
     },
   },
 })

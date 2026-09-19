@@ -1,10 +1,9 @@
 import { useState } from "react"
-import { Scale } from "lucide-react"
+import { MarcaMeirinho } from "@/components/logo"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
 
@@ -12,6 +11,7 @@ export function LoginPage() {
   const { entrar, cadastrar } = useAuth()
   const [erro, setErro] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [modo, setModo] = useState<"entrar" | "criar">("entrar")
 
   async function comTratamento(fn: () => Promise<void>) {
     setErro(null)
@@ -47,94 +47,149 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Scale className="size-6" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Meirinho</h1>
-          <p className="text-sm text-muted-foreground">
-            Audiências transcritas e processos monitorados, num lugar só.
-          </p>
+    <div className="grid min-h-svh bg-muted/40 lg:grid-cols-2">
+      <PainelInstitucional />
+
+      <div className="flex flex-col items-center justify-center gap-6 p-6">
+        {/* No celular o painel escuro some; a marca vem para cima do formulário. */}
+        <div className="flex items-center gap-2.5 lg:hidden">
+          <MarcaMeirinho className="size-8" />
+          <span className="font-logo text-3xl leading-none">Meirinho</span>
         </div>
 
-        <Card>
-          <Tabs defaultValue="entrar">
-            <CardHeader>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="entrar">Entrar</TabsTrigger>
-                <TabsTrigger value="criar">Criar conta</TabsTrigger>
-              </TabsList>
-            </CardHeader>
+        <Card className="w-full max-w-sm shadow-sm">
+          <CardHeader className="space-y-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{modo === "entrar" ? "Entrar" : "Criar conta"}</h2>
+            <p className="text-sm text-muted-foreground">
+              {modo === "entrar"
+                ? "Use o e-mail e a senha do seu escritório."
+                : "Cadastre-se com o seu número de inscrição na OAB."}
+            </p>
+          </CardHeader>
 
-            <CardContent>
-              {erro && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertDescription>{erro}</AlertDescription>
-                </Alert>
-              )}
+          <CardContent>
+            {erro && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{erro}</AlertDescription>
+              </Alert>
+            )}
 
-              <TabsContent value="entrar" className="m-0">
-                <form onSubmit={aoEntrar} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email-entrar">E-mail</Label>
-                    <Input id="email-entrar" name="email" type="email" required autoComplete="email" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="senha-entrar">Senha</Label>
-                    <Input
-                      id="senha-entrar"
-                      name="senha"
-                      type="password"
-                      required
-                      autoComplete="current-password"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={enviando}>
-                    {enviando ? "Entrando…" : "Entrar"}
-                  </Button>
-                </form>
-              </TabsContent>
+            {modo === "entrar" ? (
+              <form onSubmit={aoEntrar} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email-entrar">E-mail</Label>
+                  <Input
+                    id="email-entrar"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="voce@escritorio.adv.br"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="senha-entrar">Senha</Label>
+                  <Input
+                    id="senha-entrar"
+                    name="senha"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+                <Button type="submit" className="h-10 w-full" disabled={enviando}>
+                  {enviando ? "Entrando…" : "Entrar"}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={aoCadastrar} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome</Label>
+                  <Input id="nome" name="nome" required autoComplete="name" placeholder="Dra. Ana Costa" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="oab">OAB</Label>
+                  <Input id="oab" name="oab" required placeholder="SP 123.456" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email-criar">E-mail</Label>
+                  <Input id="email-criar" name="email" type="email" required autoComplete="email" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="senha-criar">Senha</Label>
+                  <Input
+                    id="senha-criar"
+                    name="senha"
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    placeholder="Ao menos 8 caracteres"
+                  />
+                </div>
+                <Button type="submit" className="h-10 w-full" disabled={enviando}>
+                  {enviando ? "Criando…" : "Criar conta"}
+                </Button>
+              </form>
+            )}
 
-              <TabsContent value="criar" className="m-0">
-                <form onSubmit={aoCadastrar} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome">Nome</Label>
-                    <Input id="nome" name="nome" required autoComplete="name" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="oab">OAB</Label>
-                    <Input id="oab" name="oab" required placeholder="SP123456" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email-criar">E-mail</Label>
-                    <Input id="email-criar" name="email" type="email" required autoComplete="email" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="senha-criar">Senha</Label>
-                    <Input
-                      id="senha-criar"
-                      name="senha"
-                      type="password"
-                      required
-                      minLength={8}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={enviando}>
-                    {enviando ? "Criando…" : "Criar conta"}
-                  </Button>
-                </form>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
+            <p className="mt-5 text-center text-sm text-muted-foreground">
+              {modo === "entrar" ? "Ainda não tem conta? " : "Já tem conta? "}
+              <button
+                type="button"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+                onClick={() => {
+                  setErro(null)
+                  setModo(modo === "entrar" ? "criar" : "entrar")
+                }}
+              >
+                {modo === "entrar" ? "Criar conta" : "Entrar"}
+              </button>
+            </p>
+          </CardContent>
         </Card>
-
-        <p className="text-center text-xs text-muted-foreground">
-          Cada advogado é um tenant isolado: seus dados não são visíveis a mais ninguém.
-        </p>
       </div>
     </div>
+  )
+}
+
+const PONTOS = [
+  "Audiência gravada vira resumo, estratégia e pontos críticos.",
+  "Movimentações do tribunal classificadas por urgência.",
+  "Alerta quando uma intimação abre prazo.",
+]
+
+function PainelInstitucional() {
+  return (
+    <aside className="relative hidden flex-col justify-between overflow-hidden bg-neutral-950 p-12 text-neutral-100 lg:flex">
+      {/* Marca em escala de fachada, quase apagada: textura, não ilustração. */}
+      <MarcaMeirinho className="pointer-events-none absolute -right-24 -bottom-16 size-[560px] text-white/[0.035]" />
+
+      <div className="flex items-center gap-2.5">
+        <MarcaMeirinho className="size-8 text-white" />
+        <span className="font-logo text-3xl leading-none text-white">Meirinho</span>
+      </div>
+
+      <div className="relative max-w-lg space-y-8">
+        <p className="text-xs font-medium tracking-[0.2em] text-neutral-400 uppercase">
+          Para a advocacia autônoma
+        </p>
+        <h1 className="font-logo text-5xl leading-[1.05] text-white">
+          Da sala de audiência ao prazo cumprido.
+        </h1>
+        <ul className="space-y-3 text-[15px] text-neutral-300">
+          {PONTOS.map((p) => (
+            <li key={p} className="flex gap-3">
+              <span className="mt-2.5 h-px w-4 shrink-0 bg-neutral-500" />
+              {p}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="relative text-xs text-neutral-500">
+        © {new Date().getFullYear()} Meirinho · Seus dados ficam isolados por escritório.
+      </p>
+    </aside>
   )
 }

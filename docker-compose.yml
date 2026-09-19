@@ -2,6 +2,10 @@
 # nenhuma credencial externa: transcrição e análise caem no mock por padrão.
 #
 # Ordem: infraestrutura -> migrate (roda e sai) -> serviços.
+#
+# Os padrões servem para rodar local. Em qualquer servidor, defina ao menos
+# JWT_SECRET, POSTGRES_PASSWORD, APP_DB_PASSWORD e MINIO_ROOT_PASSWORD (use só
+# letras e números nas senhas do banco: elas entram numa URL de conexão).
 
 x-servico-comum: &servico-comum
   build:
@@ -11,7 +15,7 @@ x-servico-comum: &servico-comum
   environment: &env-comum
     # Os serviços conectam como meirinho_app: sem BYPASSRLS, é o que faz o
     # isolamento por tenant valer no banco e não só na aplicação.
-    DATABASE_URL: postgres://meirinho_app:meirinho_app@postgres:5432/meirinho?sslmode=disable
+    DATABASE_URL: postgres://meirinho_app:${APP_DB_PASSWORD:-meirinho_app}@postgres:5432/meirinho?sslmode=disable
     REDIS_ADDR: redis:6379
     JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
     LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -28,23 +32,28 @@ x-servico-comum: &servico-comum
 
 services:
   postgres:
-    image: postgres:17-alpine
+    build:
+      context: ./infra/postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: meirinho
-      POSTGRES_PASSWORD: meirinho
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meirinho}
       POSTGRES_DB: meirinho
+      # Senha do papel meirinho_app, criado por infra/postgres/init.sh.
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-meirinho_app}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    # Sem porta publicada: só os serviços da rede interna falam com o banco.
+    # Para inspecionar local: docker compose exec postgres psql -U meirinho
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meirinho -d meirinho"]
       interval: 3s
       timeout: 3s
       retries: 20
-    ports: ["5432:5432"]
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
@@ -56,13 +65,14 @@ services:
 
   minio:
     image: quay.io/minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
+    restart: unless-stopped
+    command: ["server", "/data"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-meirinho}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-meirinho123}
     volumes:
       - miniodata:/data
-    ports: ["9000:9000", "9001:9001"]
+    # Sem porta publicada: o áudio sai pelo gateway com URL assinada.
 
   # Roda como dono do banco (meirinho), não como meirinho_app: o dono aplica
   # DDL e concede os grants que o papel da aplicação usa.
@@ -73,7 +83,7 @@ services:
       args:
         CMD_PATH: ./cmd/migrate
     environment:
-      DATABASE_URL: postgres://meirinho:meirinho@postgres:5432/meirinho?sslmode=disable
+      DATABASE_URL: postgres://meirinho:${POSTGRES_PASSWORD:-meirinho}@postgres:5432/meirinho?sslmode=disable
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       postgres:
@@ -160,15 +170,40 @@ services:
       PORT: "8087"
       CLASSIFY_PISO: ${CLASSIFY_PISO:-media}
       CLASSIFY_MIN_CONFIANCA: ${CLASSIFY_MIN_CONFIANCA:-0.6}
+      # O mock simula latência de modelo; na classificação ela se multiplica
+      # pelo histórico inteiro de cada processo novo, então fica curta.
+      MOCK_ANALYZE_DELAY: ${MOCK_CLASSIFY_DELAY:-300ms}
+
+  # Conta de demonstração com dados. Roda uma vez e sai; só faz algo com
+  # SEED_DEMO=true (é idempotente, então pode ficar ligado entre deploys).
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: {CMD_PATH: ./cmd/seed}
+    environment:
+      SEED_DEMO: ${SEED_DEMO:-false}
+      SEED_API_URL: http://gateway
+      SEED_EMAIL: ${SEED_EMAIL:-demo@meirinho.dev}
+      SEED_SENHA: ${SEED_SENHA:-meirinho123}
+    depends_on: [gateway]
+    restart: "no"
+
+  # Front-end (apps/web): só estáticos; o gateway é quem expõe.
+  web:
+    build:
+      context: ./apps/web
+    restart: unless-stopped
 
   # Porta única para o cliente: sem isso o front precisaria conhecer sete
   # endereços e lidar com CORS de cada um.
   gateway:
-    image: nginx:1.27-alpine
-    volumes:
-      - ./infra/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    ports: ["8080:80"]
-    depends_on: [auth-service, hearing-service, notification-service, process-monitor-service]
+    build:
+      context: ./infra/gateway
+    # Local: http://localhost:8080. No Easypanel, aponte o domínio para o
+    # serviço "gateway", porta 80 (a porta publicada aqui não é necessária).
+    ports: ["${GATEWAY_PORT:-8080}:80"]
+    depends_on: [auth-service, hearing-service, notification-service, process-monitor-service, web, minio]
     restart: unless-stopped
 
 volumes:

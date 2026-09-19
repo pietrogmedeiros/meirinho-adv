@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pietromedeiros/meirinho/internal/domain"
+	"github.com/pietromedeiros/meirinho/internal/platform/mockdata"
 )
 
 // Transcriber isola o motor de transcrição do resto do pipeline.
@@ -17,7 +20,9 @@ import (
 // substituível: trocar por outro modelo, por uma API ou por um serviço de GPU
 // não toca em nenhuma outra parte do sistema.
 type Transcriber interface {
-	Transcrever(ctx context.Context, caminhoAudio string) (string, error)
+	// area e titulo não mudam o motor real (o Whisper transcreve o que ouve);
+	// o mock os usa para escolher uma audiência fictícia coerente.
+	Transcrever(ctx context.Context, caminhoAudio string, area domain.AreaDoDireito, titulo string) (string, error)
 	Nome() string
 }
 
@@ -32,7 +37,7 @@ type whisperCLI struct {
 
 func (w *whisperCLI) Nome() string { return "whisper-cli" }
 
-func (w *whisperCLI) Transcrever(ctx context.Context, caminhoAudio string) (string, error) {
+func (w *whisperCLI) Transcrever(ctx context.Context, caminhoAudio string, _ domain.AreaDoDireito, _ string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, w.timeout)
 	defer cancel()
 
@@ -75,7 +80,7 @@ type mockTranscriber struct{ atraso time.Duration }
 
 func (m *mockTranscriber) Nome() string { return "mock" }
 
-func (m *mockTranscriber) Transcrever(ctx context.Context, caminhoAudio string) (string, error) {
+func (m *mockTranscriber) Transcrever(ctx context.Context, caminhoAudio string, area domain.AreaDoDireito, titulo string) (string, error) {
 	// Atraso proposital: a tela de status acompanha o processamento em tempo
 	// real, e sem isso o estado "transcrevendo" nunca seria visível.
 	select {
@@ -84,24 +89,5 @@ func (m *mockTranscriber) Transcrever(ctx context.Context, caminhoAudio string) 
 	case <-time.After(m.atraso):
 	}
 
-	info, err := os.Stat(caminhoAudio)
-	tamanho := int64(0)
-	if err == nil {
-		tamanho = info.Size()
-	}
-
-	return fmt.Sprintf(`[TRANSCRIÇÃO SIMULADA — motor mock, arquivo de %d KB]
-
-Juiz: Declaro aberta a audiência. Presentes as partes e seus procuradores.
-
-Advogado do autor: Excelência, reitero os termos da inicial. A prova documental
-juntada às fls. 45/62 demonstra o inadimplemento contratual desde março.
-
-Advogado do réu: Impugno os documentos. Sustento que houve novação da dívida
-por acordo verbal posterior, o que afasta a mora alegada.
-
-Juiz: Defiro a oitiva da testemunha arrolada pelo réu. Designo audiência em
-continuação. Intimem-se as partes. Prazo de 15 dias para memoriais.
-
-[Fim da gravação]`, tamanho/1024), nil
+	return mockdata.Escolher(area, titulo).Transcricao, nil
 }

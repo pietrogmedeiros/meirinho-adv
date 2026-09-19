@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -35,6 +36,11 @@ type api struct {
 	// exceto quando o classificador hesitou (fallback), caso em que avisar é
 	// sempre a decisão certa.
 	urgenciaMinima domain.Urgencia
+	// Andamento mais antigo que isto entra no histórico sem alerta. Ao
+	// cadastrar um processo que já tramita, a primeira consulta devolve meses
+	// de passado; alertar sobre uma citação de março em setembro é ruído, e o
+	// prazo dela, se existia, já correu.
+	idadeMaxima time.Duration
 }
 
 func main() {
@@ -65,6 +71,7 @@ func main() {
 		store:          &store{pool: pool},
 		despachante:    novoDespachante(rt.Log),
 		urgenciaMinima: minima,
+		idadeMaxima:    config.Duration("NOTIFY_IDADE_MAXIMA", 10*24*time.Hour),
 	}
 	rt.Log.Info("notificador pronto", "urgencia_minima", minima, "canais_extras", len(a.despachante.canais))
 
@@ -93,6 +100,8 @@ func main() {
 		r.Use(authn.Middleware(verifier))
 		r.Get("/", a.listar)
 		r.Get("/resumo", a.resumo)
+		r.Get("/preferencias", a.lerPreferencias)
+		r.Put("/preferencias", a.salvarPreferencias)
 		r.Post("/lidas", a.marcarTodasLidas)
 		r.Post("/{id}/lida", a.marcarLida)
 	})
@@ -107,19 +116,24 @@ func (a *api) deAudiencia(ctx context.Context, raw []byte) error {
 	if err != nil {
 		return nil
 	}
+	prefs := a.prefsDoTenant(ctx, ev.TenantID)
+	if !prefs.AlertarAudiencias {
+		return nil // a análise continua na tela da audiência; só não vira alerta
+	}
+
 	id := ev.HearingID
 	n, err := a.store.criar(ctx, notificacao{
 		TenantID:     ev.TenantID,
 		Tipo:         domain.NotifInApp,
 		Categoria:    "audiencia",
-		Titulo:       "Análise da audiência concluída",
+		Titulo:       tituloAudiencia(ev),
 		Corpo:        truncar(ev.Summary, maxCorpo),
 		ReferenciaID: &id,
 	})
 	if err != nil {
 		return err
 	}
-	a.despachante.Despachar(ctx, *n)
+	a.despachante.Despachar(ctx, *n, prefs)
 	return nil
 }
 
@@ -129,10 +143,17 @@ func (a *api) deMovimentacao(ctx context.Context, raw []byte) error {
 		return nil
 	}
 
+	// Data zero vem de evento publicado antes deste campo existir: na dúvida,
+	// notifica.
+	if !ev.Data.IsZero() && time.Since(ev.Data) > a.idadeMaxima {
+		return a.store.marcarMovimentacaoNotificada(ctx, ev.TenantID, ev.MovementID)
+	}
+
 	// Silenciar o irrelevante é o que mantém o alerta com valor. Mas o
 	// fallback fura o filtro: ali a urgência baixa significa "não sei", e não
 	// "não importa".
-	if !ev.FallbackAplicado && ev.Urgencia.Nivel() < a.urgenciaMinima.Nivel() {
+	prefs := a.prefsDoTenant(ctx, ev.TenantID)
+	if !ev.FallbackAplicado && ev.Urgencia.Nivel() < prefs.UrgenciaMinima.Nivel() {
 		return a.store.marcarMovimentacaoNotificada(ctx, ev.TenantID, ev.MovementID)
 	}
 
@@ -151,24 +172,37 @@ func (a *api) deMovimentacao(ctx context.Context, raw []byte) error {
 		return err
 	}
 
-	a.despachante.Despachar(ctx, *n)
+	a.despachante.Despachar(ctx, *n, prefs)
 	return a.store.marcarMovimentacaoNotificada(ctx, ev.TenantID, ev.MovementID)
 }
 
+func tituloAudiencia(ev domain.HearingAnalyzed) string {
+	if ev.Titulo == "" {
+		return "Análise da audiência concluída"
+	}
+	return "Análise pronta: " + ev.Titulo
+}
+
 func tituloMovimentacao(ev domain.MovementClassified) string {
+	// O nome dado pelo advogado é o que ele reconhece; o CNJ fica de reserva
+	// para processo cadastrado sem título.
+	proc := ev.Titulo
+	if proc == "" {
+		proc = formatarCNJ(ev.NumeroCNJ)
+	}
 	if ev.FallbackAplicado {
-		return "Movimentação exige leitura manual — " + formatarCNJ(ev.NumeroCNJ)
+		return "Movimentação exige leitura manual — " + proc
 	}
 	switch ev.Urgencia {
 	case domain.UrgenciaAlta:
 		if ev.PrazoDias != nil {
-			return fmt.Sprintf("Prazo de %d dias — %s", *ev.PrazoDias, formatarCNJ(ev.NumeroCNJ))
+			return fmt.Sprintf("Prazo de %d dias — %s", *ev.PrazoDias, proc)
 		}
-		return "Movimentação urgente — " + formatarCNJ(ev.NumeroCNJ)
+		return "Movimentação urgente — " + proc
 	case domain.UrgenciaMedia:
-		return "Movimentação relevante — " + formatarCNJ(ev.NumeroCNJ)
+		return "Movimentação relevante — " + proc
 	default:
-		return "Nova movimentação — " + formatarCNJ(ev.NumeroCNJ)
+		return "Nova movimentação — " + proc
 	}
 }
 

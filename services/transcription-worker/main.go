@@ -111,7 +111,7 @@ func (w *worker) processar(ctx context.Context, raw []byte) error {
 		return err
 	}
 
-	transcricao, err := w.transcrever(ctx, ev.ObjectKey)
+	transcricao, err := w.transcrever(ctx, ev.ObjectKey, ev.Area, ev.Titulo)
 	if err != nil {
 		msg := err.Error()
 		_ = w.marcarStatus(ctx, ev.TenantID, ev.HearingID, domain.StatusFailed, &msg)
@@ -132,7 +132,7 @@ func (w *worker) processar(ctx context.Context, raw []byte) error {
 
 // transcrever baixa o objeto para um arquivo temporário — os motores de
 // transcrição trabalham sobre caminho em disco, não sobre stream.
-func (w *worker) transcrever(ctx context.Context, objectKey string) (string, error) {
+func (w *worker) transcrever(ctx context.Context, objectKey string, area domain.AreaDoDireito, titulo string) (string, error) {
 	obj, err := w.storage.Download(ctx, objectKey)
 	if err != nil {
 		return "", fmt.Errorf("baixar áudio: %w", err)
@@ -151,7 +151,7 @@ func (w *worker) transcrever(ctx context.Context, objectKey string) (string, err
 	}
 	tmp.Close()
 
-	return w.transcriber.Transcrever(ctx, tmp.Name())
+	return w.transcriber.Transcrever(ctx, tmp.Name(), area, titulo)
 }
 
 func (w *worker) marcarStatus(ctx context.Context, tenantID, id string, s domain.HearingStatus, erro *string) error {

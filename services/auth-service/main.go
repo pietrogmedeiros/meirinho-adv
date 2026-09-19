@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -60,6 +61,8 @@ func main() {
 		r.Group(func(r chi.Router) {
 			r.Use(authn.Middleware(a.verifier))
 			r.Get("/eu", a.eu)
+			r.Patch("/eu", a.atualizarPerfil)
+			r.Post("/senha", a.trocarSenha)
 			r.Patch("/retencao", a.retencao)
 		})
 	})
@@ -185,6 +188,85 @@ func (a *api) retencao(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, t)
+}
+
+type reqPerfil struct {
+	Nome  string `json:"nome"`
+	OAB   string `json:"oab"`
+	Email string `json:"email"`
+}
+
+func (a *api) atualizarPerfil(w http.ResponseWriter, r *http.Request) {
+	var req reqPerfil
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "payload_invalido", "corpo inválido")
+		return
+	}
+	req.Nome = strings.TrimSpace(req.Nome)
+	req.OAB = strings.TrimSpace(req.OAB)
+	req.Email = strings.TrimSpace(req.Email)
+	switch {
+	case req.Nome == "":
+		httpx.Fail(w, http.StatusBadRequest, "nome_obrigatorio", "informe seu nome")
+		return
+	case req.OAB == "":
+		httpx.Fail(w, http.StatusBadRequest, "oab_obrigatoria", "informe seu número de OAB")
+		return
+	case !reEmail.MatchString(req.Email):
+		httpx.Fail(w, http.StatusBadRequest, "email_invalido", "informe um e-mail válido")
+		return
+	}
+
+	t, err := a.store.atualizarPerfil(r.Context(), authn.TenantDo(r.Context()), req.Nome, req.OAB, req.Email)
+	if errors.Is(err, errEmailEmUso) {
+		httpx.Fail(w, http.StatusConflict, "email_em_uso", "já existe uma conta com esse e-mail")
+		return
+	}
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "erro_interno", "não foi possível atualizar")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, t)
+}
+
+type reqSenha struct {
+	SenhaAtual string `json:"senha_atual"`
+	NovaSenha  string `json:"nova_senha"`
+}
+
+// trocarSenha exige a senha atual: um token de sessão roubado não pode virar
+// tomada de conta. Os tokens já emitidos continuam válidos até expirar — não
+// há lista de revogação no MVP.
+func (a *api) trocarSenha(w http.ResponseWriter, r *http.Request) {
+	var req reqSenha
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "payload_invalido", "corpo inválido")
+		return
+	}
+	if len(req.NovaSenha) < 8 {
+		httpx.Fail(w, http.StatusBadRequest, "senha_fraca", "a nova senha precisa ter ao menos 8 caracteres")
+		return
+	}
+	id := authn.TenantDo(r.Context())
+	hash, err := a.store.senhaHash(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "erro_interno", "não foi possível trocar a senha")
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.SenhaAtual)) != nil {
+		httpx.Fail(w, http.StatusBadRequest, "senha_atual_incorreta", "a senha atual está incorreta")
+		return
+	}
+	novo, err := bcrypt.GenerateFromPassword([]byte(req.NovaSenha), bcrypt.DefaultCost)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "erro_interno", "falha ao processar a senha")
+		return
+	}
+	if err := a.store.atualizarSenha(r.Context(), id, string(novo)); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "erro_interno", "não foi possível trocar a senha")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) responderSessao(w http.ResponseWriter, status int, t *tenant) {

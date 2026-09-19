@@ -1,4 +1,4 @@
-import type { HearingStatus, Urgencia } from "./tipos"
+import { AREAS, type HearingStatus, type Urgencia } from "./tipos"
 
 /** O banco guarda só os 20 dígitos; ninguém lê processo sem pontuação. */
 export function formatarCNJ(cnj: string): string {
@@ -44,4 +44,23 @@ export const URGENCIA: Record<Urgencia, { rotulo: string; variante: Variante; co
   media: { rotulo: "Média", variante: "default", cor: "bg-amber-500" },
   baixa: { rotulo: "Baixa", variante: "secondary", cor: "bg-sky-500" },
   nenhuma: { rotulo: "Nenhuma", variante: "outline", cor: "bg-muted-foreground" },
+}
+
+export function rotuloArea(area: string): string {
+  return AREAS.find((a) => a.valor === area)?.rotulo ?? area
+}
+
+/**
+ * A URL assinada sai do hearing-service com o host interno do MinIO
+ * (`minio:9000`), que o navegador não resolve. O gateway expõe o bucket na
+ * mesma origem e repassa o Host original, então basta trocar a origem — a
+ * assinatura cobre caminho, query e Host, e os três chegam intactos ao MinIO.
+ */
+export function urlDeAudio(assinada: string): string {
+  try {
+    const u = new URL(assinada)
+    return u.pathname + u.search
+  } catch {
+    return assinada
+  }
 }

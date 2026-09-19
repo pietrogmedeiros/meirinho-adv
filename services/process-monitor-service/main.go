@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"regexp"
@@ -83,7 +84,9 @@ func main() {
 		r.Use(authn.Middleware(verifier))
 		r.Get("/", a.listar)
 		r.Post("/", a.criar)
+		r.Get("/{id}", a.detalhe)
 		r.Delete("/{id}", a.arquivar)
+		r.Get("/movimentacoes/{id}/processo", a.processoDaMovimentacao)
 		r.Get("/{id}/movements", a.movimentacoes)
 	})
 
@@ -141,7 +144,41 @@ func (a *api) criar(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "erro_interno", "não foi possível cadastrar o processo")
 		return
 	}
+
+	// Consulta imediata só deste processo, fora da requisição: sem isso o
+	// advogado cadastra e fica até POLL_INTERVAL olhando uma lista vazia. A
+	// idempotência do banco torna inofensivo o poller pegar o mesmo processo
+	// logo depois.
+	tenantID := authn.TenantDo(r.Context())
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		a.poller.sincronizar(ctx, tenantID, processoAtivo{
+			ID: p.ID, NumeroCNJ: p.NumeroCNJ, Area: p.AreaDoDireito, Titulo: p.Titulo,
+		})
+	}()
+
 	httpx.JSON(w, http.StatusCreated, p)
+}
+
+func (a *api) detalhe(w http.ResponseWriter, r *http.Request) {
+	p, err := a.store.buscar(r.Context(), authn.TenantDo(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		// id malformado (não-UUID) também cai aqui: para o cliente é o mesmo
+		// "não existe".
+		httpx.Fail(w, http.StatusNotFound, "nao_encontrado", "processo não encontrado")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+func (a *api) processoDaMovimentacao(w http.ResponseWriter, r *http.Request) {
+	id, err := a.store.processoDaMovimentacao(r.Context(), authn.TenantDo(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Fail(w, http.StatusNotFound, "nao_encontrada", "movimentação não encontrada")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]string{"process_id": id})
 }
 
 func (a *api) arquivar(w http.ResponseWriter, r *http.Request) {
